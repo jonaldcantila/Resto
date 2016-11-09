@@ -6,10 +6,10 @@
         
       
             <meta name="format-detection" content="telephone=no">
-                <meta name="msapplication-tap-highlight" content="no">
-                    <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
+            <meta name="msapplication-tap-highlight" content="no">
+            <meta name="viewport" content="user-scalable=no, initial-scale=1, maximum-scale=1, minimum-scale=1, width=device-width">
                             
-                            <title>Creative - Start Bootstrap Theme</title>
+            <title>Creative - Start Bootstrap Theme</title>
                             
                             <!-- Bootstrap Core CSS -->
                             <link href="css/bootstrap.min.css" rel="stylesheet">
@@ -32,53 +32,196 @@
                                          <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
                                          <![endif]-->
                                         
+                                        
     </head>
+    <!-- jQuery -->
+    <script src="js/jquery/jquery.min.js"></script>
+    
+    <!-- Bootstrap Core JavaScript -->
+    <script src="js/bootstrap/bootstrap.min.js"></script>
+    
+    <!-- Plugin JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js"></script>
+    <script src="js/scrollreveal/scrollreveal.min.js"></script>
+    <script src="js/magnific-popup/jquery.magnific-popup.min.js"></script>
+    
+    <!-- Theme JavaScript -->
+    <script src="js/creative.min.js"></script>
+    <script src="cordova.js"></script>
+    <script src="js/typeahead.js"></script>
+
     <script>
-        function initMap() {
-            var chicago = {lat: 41.85, lng: -87.65};
-            var indianapolis = {lat: 39.79, lng: -86.14};
-            
-            var map = new google.maps.Map(document.getElementById('map'), {
-                                          center: chicago,
-                                          scrollwheel: false,
-                                          zoom: 7
-                                          });
-                                          
-                                          var directionsDisplay = new google.maps.DirectionsRenderer({
-                                                                                                     map: map
-                                                                                                     });
-                                                                                                     
-                                                                                                     // Set destination, origin and travel mode.
-                                                                                                     var request = {
-                                                                                                         destination: indianapolis,
-                                                                                                         origin: chicago,
-                                                                                                         travelMode: 'DRIVING'
-                                                                                                     };
-                                                                                                     
-                                                                                                     // Pass the directions request to the directions service.
-                                                                                                     var directionsService = new google.maps.DirectionsService();
-                                                                                                     directionsService.route(request, function(response, status) {
-                                                                                                                             if (status == 'OK') {
-                                                                                                                             // Display the route on the map.
-                                                                                                                             directionsDisplay.setDirections(response);
-                                                                                                                             }
-                                                                                                                             });
+        var long;
+        var lat;
+        var map;
+        var infowindow;
+        var markers = [];
+        var getCurrentPosition;
+        //
+        document.addEventListener("deviceready", onDeviceReady, false);
+        
+        function onDeviceReady(){
+           navigator.geolocation.getCurrentPosition(initMap, onError);
         }
+    
+        function getSelectedLocation(destination){
+           
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: getCurrentPosition,
+                scrollwheel: false,
+                zoom: 18
+            });
+                                      
+            var marker = new google.maps.Marker({
+                position: getCurrentPosition,
+                map: map
+            });
+            var directionsDisplay = new google.maps.DirectionsRenderer({
+                map: map
+            });
+            var request = {
+                destination: destination,
+                origin: getCurrentPosition,
+                travelMode: 'DRIVING'
+            };
+                
+            // Pass the directions request to the directions service.
+            var directionsService = new google.maps.DirectionsService();
+            
+            directionsService.route(request, function(response, status) {
+                if (status == 'OK') {
+                    // Display the route on the map.
+                    directionsDisplay.setDirections(response);
+                }
+            });
+        }
+    
+        function initMap(position) {
+            getNearbyPlace(position);
+        }
+    
+        function getNearbyPlace(position){
+            lat = position.coords.latitude;
+            long = position.coords.longitude;
+            getCurrentPosition = {lat: lat, lng: long};
+        
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: getCurrentPosition,
+                scrollwheel: false,
+                zoom: 18
+            });
+                                  
+            infowindow = new google.maps.InfoWindow();
+            var service = new google.maps.places.PlacesService(map);
+            
+            service.nearbySearch({
+                location: getCurrentPosition,
+                radius: 500,
+                type: ['restaurant'], // 'restaurant','bakery','cafe','bar','meal_delivery','meal_takeaway'
+            }, callback);
+
+        }
+    
+        function callback(results, status) {
+            if (status === google.maps.places.PlacesServiceStatus.OK) {
+                var places ="";
+                var placesArray = [];
+                for (var i = 0; i < results.length; i++) {
+                    
+                var placeObj = {};
+                    placeObj["restoName"] = results[i].name;
+                    placeObj["lat"] = results[i].geometry.location;
+                    placesArray.push(placeObj);
+                    
+                    places = results[i].geometry.location;
+                    createMarker(results[i].name, results[i].geometry.location);
+                }
+                
+                $(':input.searchResto').typeahead({
+                    source: function(query, process) {
+                        objects = [];
+                        maps = {};
+                        $.each(placesArray, function(i, object) {
+                           maps[object.restoName] = object;
+                           objects.push(object.restoName);
+                        });
+                        process(objects);
+                    },
+                    updater: function(item) {
+                                                  
+                        deleteMarkers();
+                        getSelectedLocation(maps[item].lat);
+                        
+                        return maps[item].restoName;
+                    }
+                });
+            }
+        }
+
+        function createMarker(name, loc) {
+            var marker  = new google.maps.Marker({
+                map: map,
+                position: loc
+            });
+            var element = document.getElementById("location");
+            element.innerHTML = "Name: "+name+"<br/> loc: "+loc
+            google.maps.event.addListener(marker, 'click', function() {
+                infowindow.setContent(name);
+                infowindow.open(map, this);
+            });
+            markers.push(marker);
+        }
+    
+        // Deletes all markers in the array by removing references to them.
+        function deleteMarkers() {
+            clearMarkers();
+            markers = [];
+        }
+        function clearMarkers() {
+            setMapOnAll(null);
+        }
+    
+        // Sets the map on all markers in the array.
+        function setMapOnAll(map) {
+            for (var i = 0; i < markers.length; i++) {
+                markers[i].setMap(map);
+            }
+        }
+    
+        function onError(error){
+            var element = document.getElementById("error");
+            element.innerHTML = "This is error"+error;
+        }
+        // Sets the map on all markers in the array.
+    
     </script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB1TQ6GhpgzzDhCbSlEwEMn9DMIIvqYCZA&callback=initMap"
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyB1TQ6GhpgzzDhCbSlEwEMn9DMIIvqYCZA&libraries=places"
         async defer></script>
     <style>
         #map {
             height: 400px;
             width: 100%;
         }
+        .dropdown-menu{
+            width: 100%;
+            margin-top: 20px;
+        }
+        .dropdown-menu>.active>a, .dropdown-menu>.active>a:focus, .dropdown-menu>.active>a:hover {
+            color: #fff;
+            text-decoration: none;
+            background-color: white;
+            color:#e74c3c;
+            outline: 0;
+            width: 100%;
+        }
+   
     </style>
     <body id="page-top">
         
         <nav id="mainNav" style="height: 60px;" class="navbar navbar-default navbar-fixed-top">
             <div class="container-fluid" >
                 <div class="has-error" >
-                    <input style="margin-top: 20px;color: #e74c3c;border-color: #e74c3c;box-shadow: none;border: 2px solid #e74c3c;" type="text" placeholder="Search restaurant, location and places" class="form-control"/>
+                    <input style="margin-top: 20px;color: #e74c3c;border-color: #e74c3c;box-shadow: none;border: 2px solid #e74c3c;" type="text" placeholder="Search restaurant, location and places" class="searchResto form-control"/>
                 </div>
             </div>
             <!-- /.container-fluid -->
@@ -87,9 +230,20 @@
         <header>
             <div class="header-content">
                 <div class="header-content-inner">
+                    
                     <div id="map">
                         
                     </div>
+                    <div id="location">
+                        
+                    </div>
+                    <div id="places">
+                        
+                    </div>
+                    <div id="list">
+                        
+                    </div>
+                   
                 </div>
             </div>
         </header>
@@ -279,19 +433,7 @@
             <!-- /.container-fluid -->
         </nav>
         
-        <!-- jQuery -->
-        <script src="js/jquery/jquery.min.js"></script>
-        
-        <!-- Bootstrap Core JavaScript -->
-        <script src="js/bootstrap/bootstrap.min.js"></script>
-        
-        <!-- Plugin JavaScript -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-easing/1.3/jquery.easing.min.js"></script>
-        <script src="js/scrollreveal/scrollreveal.min.js"></script>
-        <script src="js/magnific-popup/jquery.magnific-popup.min.js"></script>
-        
-        <!-- Theme JavaScript -->
-        <script src="js/creative.min.js"></script>
+       
         
     </body>
     
